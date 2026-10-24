@@ -1,0 +1,19 @@
+{
+    "KPlugin": {
+        "Authors": [
+            {
+                "Email": "vinceliuice@hotmail.com",
+                "Name": "Vince Liuice"
+            }
+        ],
+        "Category": "Plasma 6.0 theme",
+        "Description": "MacTahoe dark + прозрачная панель (стекло только у элементов)",
+        "EnabledByDefault": true,
+        "Id": "MacTahoe-Glass",
+        "License": "GPL-3.0",
+        "Name": "MacTahoe Glass",
+        "Version": "6.2.0",
+        "Website": "https://github.com/vinceliuice"
+    },
+    "X-Plasma-API": "5.0"
+}

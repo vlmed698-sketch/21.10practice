@@ -1,0 +1,14 @@
+[
+  {
+    "match": "^discord_status_icon",
+    "icon": "discord-symbolic",
+    "enabled": true,
+    "comment": "Discord"
+  },
+  {
+    "match": "^Throne$",
+    "icon": "network-vpn-symbolic",
+    "enabled": true,
+    "comment": "Throne"
+  }
+]

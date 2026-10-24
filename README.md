@@ -25,6 +25,7 @@
 | `patches/crystal-dock/` | патч к Crystal Dock v2.16 |
 | `scripts/collect-vendor.sh` | собирает сторонние файлы в `vendor/` с установленной системы |
 | `scripts/build.sh` | собирает `dist/macOS-тема-KDE.sh` |
+| `scripts/check.sh` | проверяет исходники перед сборкой |
 | `docs/hotkeys.md` | горячие клавиши |
 
 Сторонние файлы (иконки, курсоры и обои MacTahoe, шрифты, звуки, плазмоиды Panel Colorizer
@@ -32,9 +33,10 @@
 
 ## Сборка установщика
 
-Нужна KDE Plasma 6.8 с уже установленной темой: сторонние файлы берутся из неё, и `collect-vendor.sh` остановится с ошибкой «Нет файла», если чего-то не хватает:
+Нужна KDE Plasma 6.8 с уже установленной темой: сторонние файлы берутся из неё, и `collect-vendor.sh` остановится с ошибкой «Нет файла», если чего-то не хватает. Сначала проверьте исходники:
 
 ```bash
+scripts/check.sh            # синтаксис скриптов, JSON, QML, патч
 scripts/collect-vendor.sh   # → vendor/
 scripts/build.sh            # → dist/macOS-тема-KDE.sh
 ```

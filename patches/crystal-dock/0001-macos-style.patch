@@ -1,0 +1,193 @@
+Crystal Dock v2.16 (https://github.com/dangvd/crystal-dock, тег v2.16) — правки в стиле macOS:
+- размытие KWin (KWindowEffects) только под скруглённым фоном дока, тонкая светлая кромка у стиля Flat 2D;
+- подпись приложения на светлой «пилюле» со стрелкой вместо текста с обводкой;
+- одна точка 4 px под запущенным приложением независимо от числа окон;
+- разделитель цвета кромки; перед Корзиной — разделитель и стопка «Загрузки» (ярлык macos-downloads-stack).
+Применение: git -C crystal-dock apply ../patches/crystal-dock/0001-macos-style.patch
+
+diff --git a/src/CMakeLists.txt b/src/CMakeLists.txt
+index dc193c0..d5f51e0 100644
+--- a/src/CMakeLists.txt
++++ b/src/CMakeLists.txt
+@@ -21,6 +21,7 @@ if (Qt6_VERSION VERSION_GREATER_EQUAL 6.9.0)
+ endif()
+ find_package(Wayland 1.22 REQUIRED COMPONENTS Client)
+ find_package(LayerShellQt 6.0 REQUIRED)
++find_package(KF6WindowSystem REQUIRED)
+ 
+ set(SRCS
+     desktop/desktop_env.cc
+@@ -140,7 +141,7 @@ set(SRCS
+     view/wifi_connection_dialog.ui)
+ add_library(crystal-dock_lib STATIC ${SRCS})
+ 
+-set(LIBS Qt6::DBus Qt6::GuiPrivate Qt6::Widgets Wayland::Client LayerShellQt::Interface)
++set(LIBS Qt6::DBus Qt6::GuiPrivate Qt6::Widgets Wayland::Client LayerShellQt::Interface KF6::WindowSystem)
+ target_link_libraries(crystal-dock_lib ${LIBS})
+ 
+ add_executable(crystal-dock main.cc)
+diff --git a/src/view/dock_panel.cc b/src/view/dock_panel.cc
+index dc82c94..bc63ae1 100644
+--- a/src/view/dock_panel.cc
++++ b/src/view/dock_panel.cc
+@@ -45,6 +45,9 @@
+ #include <QVariant>
+ 
+ #include <LayerShellQt/Window>
++#include <KWindowEffects>
++#include <QPainterPath>
++#include <QRegion>
+ 
+ #include "add_panel_dialog.h"
+ #include "application_menu.h"
+@@ -655,14 +658,28 @@ void DockPanel::drawGlass3D(QPainter& painter) {
+   }
+ }
+ 
++void DockPanel::updateBlurRegion(const QRect& rect, int radius) {
++  if (rect == blurRect_ && radius == blurRadius_) {
++    return;
++  }
++  blurRect_ = rect;
++  blurRadius_ = radius;
++  if (windowHandle() == nullptr) {
++    return;
++  }
++  QPainterPath path;
++  path.addRoundedRect(QRectF(rect), radius, radius);
++  KWindowEffects::enableBlurBehind(windowHandle(), true, QRegion(path.toFillPolygon().toPolygon()));
++}
++
+ void DockPanel::draw2D(QPainter& painter) {
+   const QColor bgColor = isGlass2D()
+       ? model_->backgroundColor()
+       : isFlat2D()
+           ? model_->backgroundColor2D()
+           : model_->backgroundColorMetal2D();
+-  const auto showBorder = isGlass2D() || isMetal2D();
+-  const QColor borderColor = isGlass2D() ? model_->borderColor() : model_->borderColorMetal2D();
++  const auto showBorder = isGlass2D() || isMetal2D() || isFlat2D();
++  const QColor borderColor = (isGlass2D() || isFlat2D()) ? model_->borderColor() : model_->borderColorMetal2D();
+   if (isHorizontal()) {
+     const int y = isTop()
+         ? isFloating() ? floatingMargin_ : 0
+@@ -676,6 +693,7 @@ void DockPanel::draw2D(QPainter& painter) {
+     fillRoundedRect(
+         (maxWidth_ - backgroundWidth_) / 2, y, backgroundWidth_ - 1, backgroundHeight_ - 1,
+          r, showBorder, borderColor, bgColor, &painter);
++    updateBlurRegion(QRect((maxWidth_ - backgroundWidth_) / 2, y, backgroundWidth_, backgroundHeight_), r);
+   } else {  // Vertical
+     const int x =  isLeft()
+         ? isFloating() ? floatingMargin_ : 0
+@@ -705,15 +723,30 @@ void DockPanel::drawTooltip(QPainter& painter) {
+       const auto& item = items_[activeItem_];
+       QFont font;
+       font.setPointSize(model_->tooltipFontSize());
+-      font.setBold(true);
+       QFontMetrics metrics(font);
+-      const auto tooltipWidth = metrics.boundingRect(item->getLabel()).width();
++      const QString label = item->getLabel();
++      const int padX = 10, padY = 4, arrow = 5;
++      const int textW = metrics.horizontalAdvance(label);
++      const int boxW = textW + 2 * padX;
++      const int boxH = metrics.height() + 2 * padY;
++      const int cx = item->left_ + item->getWidth() / 2;
++      int bx = std::clamp(cx - boxW / 2, 1, std::max(1, maxWidth_ - boxW - 1));
++      int by = isTop() ? maxHeight_ - boxH - 1 : 1;
++      painter.setRenderHint(QPainter::Antialiasing);
++      QPainterPath bubble;
++      bubble.addRoundedRect(QRectF(bx + 0.5, by + 0.5, boxW, boxH), boxH / 2.0, boxH / 2.0);
++      QPainterPath tip;
++      const qreal ty = isTop() ? by + 0.5 : by + boxH + 0.5;
++      const qreal dir = isTop() ? -1 : 1;
++      tip.moveTo(cx - arrow, ty); tip.lineTo(cx, ty + dir * arrow); tip.lineTo(cx + arrow, ty); tip.closeSubpath();
++      bubble = bubble.united(tip);
++      painter.fillPath(bubble, QColor(236, 236, 238, 235));
++      painter.setPen(QColor(0, 0, 0, 45));
++      painter.drawPath(bubble);
+       painter.setFont(font);
+-      int x = item->left_ + item->getWidth() / 2 - tooltipWidth / 2;
+-      x = std::min(x, maxWidth_ - tooltipWidth);
+-      x = std::max(x, 0);
+-      int y = isTop() ? maxHeight_ - tooltipSize_ / 2 : tooltipSize_ * 3 / 4;
+-      drawBorderedText(x, y, item->getLabel(), /*borderWidth*/ 2, Qt::black, Qt::white, &painter);
++      painter.setPen(QColor(28, 28, 30));
++      painter.drawText(QRect(bx, by, boxW, boxH), Qt::AlignCenter, label);
++      painter.setRenderHint(QPainter::Antialiasing, false);
+     } else {  // Vertical
+       // Do not draw tooltip for Vertical positions for now because the total
+       // area of the dock would take too much desktop space.
+@@ -1415,6 +1448,14 @@ bool DockPanel::hasTask(void* window) {
+ 
+ void DockPanel::initTrash() {
+   if (showTrash_) {
++    items_.push_back(std::make_unique<Separator>(
++        this, model_, orientation_, minSize_, maxSize_, /*isLauncherSeparator=*/false));
++    if (const auto* stack = model_->findApplication("macos-downloads-stack")) {
++      items_.push_back(std::make_unique<Program>(
++          this, model_, stack->appId, stack->name, orientation_,
++          loadIcon(stack->icon, kIconLoadSize), minSize_, maxSize_, stack->command,
++          /*isAppMenuEntry=*/false, /*pinned=*/true));
++    }
+     items_.push_back(std::make_unique<Trash>(
+         this, model_, orientation_, minSize_, maxSize_));
+   }
+@@ -1472,9 +1513,8 @@ void DockPanel::initLayoutVars() {
+ 
+   QFont font;
+   font.setPointSize(model_->tooltipFontSize());
+-  font.setBold(true);
+   QFontMetrics metrics(font);
+-  tooltipSize_ = metrics.boundingRect("Tooltip").height();
++  tooltipSize_ = metrics.height() + 2 * 4 + 5 + 4;
+ 
+   const int distance = minSize_ + itemSpacing_;
+   // The difference between minWidth_ and maxWidth_
+diff --git a/src/view/dock_panel.h b/src/view/dock_panel.h
+index 1a5e1bb..a1bb479 100644
+--- a/src/view/dock_panel.h
++++ b/src/view/dock_panel.h
+@@ -66,7 +66,7 @@ class DockPanel : public QWidget {
+ 
+   static constexpr int k3DPanelThickness = 4;
+   static constexpr int kIndicatorSizeGlass = 10;  // for Glass 2D/3D.
+-  static constexpr int kIndicatorSizeFlat2D = 6;
++  static constexpr int kIndicatorSizeFlat2D = 4;
+   static constexpr int kIndicatorSizeMetal2D = 8;
+   static constexpr int kIndicatorSpacing = 3;
+   static constexpr int kIndicatorMarginGlass2D = 4;
+@@ -377,6 +377,9 @@ class DockPanel : public QWidget {
+   // Drawing logic for each dock style.
+   void drawGlass3D(QPainter& painter);
+   void draw2D(QPainter& painter);  // for 2D styles.
++  void updateBlurRegion(const QRect& rect, int radius);
++  QRect blurRect_;
++  int blurRadius_ = -1;
+ 
+   void drawTooltip(QPainter& painter);
+ 
+diff --git a/src/view/program.cc b/src/view/program.cc
+index 565761f..25acfd4 100644
+--- a/src/view/program.cc
++++ b/src/view/program.cc
+@@ -90,6 +90,7 @@ void Program::draw(QPainter *painter) const {
+   if (parent_->showTaskManager() && taskCount > 0) {  // Show task count indicator.
+     static constexpr int kMaxVisibleTaskCount = 4;
+     if (taskCount > kMaxVisibleTaskCount) { taskCount = kMaxVisibleTaskCount; }
++    if (parent_->isFlat2D()) { taskCount = 1; }  // macOS: a single dot regardless of window count
+     auto activeTask = getActiveTask();
+     if (activeTask > kMaxVisibleTaskCount - 1) { activeTask = kMaxVisibleTaskCount - 1; }
+ 
+diff --git a/src/view/separator.cc b/src/view/separator.cc
+index da51675..51943c4 100644
+--- a/src/view/separator.cc
++++ b/src/view/separator.cc
+@@ -53,7 +53,7 @@ void Separator::draw(QPainter* painter) const {
+   if (parent_->isGlass()) {
+     // For Glass 2D/3D styles, do not draw anything.
+   } else if (parent_->isFlat2D()) {
+-    painter->fillRect(x, y, w, h, model_->backgroundColor2D().lighter());
++    painter->fillRect(x, y + h / 6, w, h * 2 / 3, model_->borderColor());
+   } else {  // Metal 2D.
+     painter->fillRect(x, y, w, h, model_->borderColor());
+   }

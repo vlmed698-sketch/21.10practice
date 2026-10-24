@@ -1,0 +1,16 @@
+{
+    "KPackageStructure": "Plasma/Applet",
+    "KPlugin": {
+        "Authors": [{ "Name": "macOS theme for KDE" }],
+        "Category": "Utilities",
+        "Description": "Search icon for the menu bar: opens KRunner, like Spotlight",
+        "Description[ru]": "Значок поиска для строки меню: открывает KRunner, как Spotlight",
+        "Icon": "system-search",
+        "Id": "org.macos.spotlight",
+        "License": "GPL-2.0-or-later",
+        "Name": "Spotlight Search",
+        "Name[ru]": "Поиск (Spotlight)",
+        "Version": "1.0"
+    },
+    "X-Plasma-API-Minimum-Version": "6.0"
+}
